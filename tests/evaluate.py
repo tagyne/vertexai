@@ -1,4 +1,4 @@
-"""Regression evaluation helpers."""
+"""Local evaluation helpers used by tests and experiments."""
 
 import json
 import math

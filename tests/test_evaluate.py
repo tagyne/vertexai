@@ -1,4 +1,4 @@
-from src.evaluate import regression_metrics
+from tests.evaluate import regression_metrics
 
 
 def test_regression_metrics_returns_mae_and_rmse() -> None:

@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "student-performance-mlops-tf-state"
+    bucket = "vertexai-tf-state-bucket"
     prefix = "terraform/state"
   }
 }

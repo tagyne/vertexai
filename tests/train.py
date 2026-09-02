@@ -1,4 +1,4 @@
-"""Local model construction and training."""
+"""Local model training helpers used by tests and local experiments."""
 
 from pathlib import Path
 import json

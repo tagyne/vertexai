@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 
-from src.train import build_model
+from tests.train import build_model
 
 
 def test_build_model_contains_preprocessor_and_random_forest() -> None:

@@ -1,0 +1,27 @@
+[project]
+name = "student-performance-mlops"
+version = "0.1.0"
+description = "Reproducible Vertex AI MLOps MVP for student performance prediction"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "google-cloud-aiplatform==1.71.1",
+  "google-cloud-storage==2.18.2",
+  "joblib==1.4.2",
+  "kagglehub==0.3.12",
+  "kfp==2.9.0",
+  "pandas==2.2.3",
+  "scikit-learn==1.5.2",
+]
+
+[dependency-groups]
+dev = ["pytest==8.3.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["src*"]

@@ -15,6 +15,7 @@ from google.cloud.aiplatform_v1 import MetadataServiceClient
 
 PROJECT_LABELS = {"project": "student-performance-mlops", "managed_by": "vertex-pipeline", "environment": "dev"}
 PIPELINE_NAME = "student-performance-pipeline"
+PIPELINE_BILLING_LABEL = "vertex-ai-pipelines-run-billing-id"
 PIPELINE_TERMINAL_STATES = {"PIPELINE_STATE_SUCCEEDED", "PIPELINE_STATE_FAILED", "PIPELINE_STATE_CANCELLED"}
 JOB_TERMINAL_STATES = {"JOB_STATE_SUCCEEDED", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED"}
 
@@ -28,8 +29,12 @@ class CleanupPlan:
     buckets: list[Any] = field(default_factory=list)
 
 
-def enum_name(value: Any) -> str:
-    return str(value).rsplit(".", 1)[-1]
+def state_name(resource: Any) -> str:
+    value = resource.state
+    if isinstance(value, str):
+        return value.rsplit(".", 1)[-1]
+    field = resource._gca_resource._pb.DESCRIPTOR.fields_by_name["state"]
+    return field.enum_type.values_by_number[int(value)].name
 
 
 def has_project_labels(resource: Any) -> bool:
@@ -40,21 +45,30 @@ def has_project_labels(resource: Any) -> bool:
 def collect_plan(project: str, region: str) -> CleanupPlan:
     aiplatform.init(project=project, location=region)
     plan = CleanupPlan()
-    for job in aiplatform.PipelineJob.list(
-        project=project, location=region, filter=f'display_name="{PIPELINE_NAME}"'
-    ):
-        if enum_name(job.state) not in PIPELINE_TERMINAL_STATES:
+    pipeline_billing_ids: set[str] = set()
+    for job in aiplatform.PipelineJob.list(project=project, location=region):
+        labels = getattr(job, "labels", {}) or {}
+        if getattr(job, "display_name", "") != PIPELINE_NAME:
+            continue
+        if not (has_project_labels(job) or labels.get(PIPELINE_BILLING_LABEL)):
+            continue
+        if state_name(job) not in PIPELINE_TERMINAL_STATES:
             continue
         plan.pipelines.append(job)
+        pipeline_billing_ids.add(labels.get(PIPELINE_BILLING_LABEL, ""))
         detail = getattr(getattr(job, "_gca_resource", None), "job_detail", None)
         for attribute in ("pipeline_context", "pipeline_run_context"):
-            context_name = getattr(detail, attribute, "") if detail else ""
+            context = getattr(detail, attribute, None) if detail else None
+            context_name = getattr(context, "name", "") if context else ""
             if context_name:
                 plan.metadata_contexts.add(context_name)
-    for job in aiplatform.CustomJob.list(
-        project=project, location=region, filter='display_name:"student-performance"'
-    ):
-        if enum_name(job.state) in JOB_TERMINAL_STATES:
+    for job in aiplatform.CustomJob.list(project=project, location=region):
+        labels = getattr(job, "labels", {}) or {}
+        if labels.get(PIPELINE_BILLING_LABEL) not in pipeline_billing_ids:
+            continue
+        if "vertex_pipelines" not in labels:
+            continue
+        if state_name(job) in JOB_TERMINAL_STATES:
             plan.custom_jobs.append(job)
     plan.models = [
         model for model in aiplatform.Model.list(project=project, location=region) if has_project_labels(model)
@@ -79,7 +93,7 @@ def delete_plan(plan: CleanupPlan, project: str, region: str) -> None:
         batch = plan.pipelines[start : start + 32]
         if batch:
             print(f"Deleting {len(batch)} pipeline job(s)")
-            aiplatform.PipelineJob.batch_delete(
+            batch[0].batch_delete(
                 project=project, location=region, names=[job.resource_name for job in batch]
             )
     metadata_client = MetadataServiceClient(

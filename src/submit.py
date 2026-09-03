@@ -10,6 +10,13 @@ from kfp import compiler
 from src.pipeline import student_performance_pipeline
 
 
+PIPELINE_LABELS = {
+    "project": "student-performance-mlops",
+    "managed_by": "vertex-pipeline",
+    "environment": "dev",
+}
+
+
 def submit(project: str, region: str, pipeline_root: str,
            endpoint_id: str, service_account: str | None) -> None:
     output_path = Path("pipeline.yaml")
@@ -20,6 +27,7 @@ def submit(project: str, region: str, pipeline_root: str,
         enable_caching=False,
         template_path=str(output_path),
         pipeline_root=pipeline_root,
+        labels=PIPELINE_LABELS,
         parameter_values={"project": project,
                           "region": region, "endpoint_id": endpoint_id},
     )

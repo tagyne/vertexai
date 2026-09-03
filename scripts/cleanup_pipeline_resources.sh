@@ -5,6 +5,20 @@ usage() { echo "Usage: $0 --project PROJECT --region REGION [--execute]" >&2; ex
 project=""
 region=""
 execute="false"
+
+remove_prefix() {
+  local uri="$1"
+  local output
+  if output=$(gcloud storage rm --recursive "$uri" 2>&1); then
+    echo "$output"
+  elif [[ "$output" == *"matched no objects"* ]]; then
+    echo "No objects under ${uri}; skipping."
+  else
+    echo "$output" >&2
+    return 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --project) project="${2:-}"; shift 2 ;;
@@ -31,7 +45,7 @@ gcloud ai models list --project "$project" --region "$region" \
 while read -r bucket; do
   [[ -n "$bucket" ]] || continue
   for prefix in pipeline-root pipeline-tmp; do
-    gcloud storage rm --recursive "gs://${bucket}/${prefix}/"
+    remove_prefix "gs://${bucket}/${prefix}/"
   done
 done < <(gcloud storage buckets list --project "$project" \
   --filter='labels.project=student-performance-mlops AND labels.managed_by=vertex-pipeline AND labels.environment=dev' \

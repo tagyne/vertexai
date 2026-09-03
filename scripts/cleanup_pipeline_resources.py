@@ -101,7 +101,12 @@ def delete_plan(plan: CleanupPlan, project: str, region: str) -> None:
     )
     for context_name in sorted(plan.metadata_contexts):
         print(f"Deleting metadata context: {context_name}")
-        metadata_client.delete_context(name=context_name, force=True).result()
+        try:
+            metadata_client.delete_context(
+                request={"name": context_name, "force": True}
+            ).result()
+        except NotFound:
+            print(f"Metadata context already absent: {context_name}")
     for job in plan.custom_jobs:
         print(f"Deleting custom job: {job.resource_name}")
         job.delete()

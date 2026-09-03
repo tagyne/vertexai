@@ -16,6 +16,7 @@ NUMERICAL_FEATURES = [
 ]
 TARGET_COLUMN = "final_exam_score"
 LEAKAGE_COLUMNS = ["final_grade"]
+MISSING_CATEGORY = "Unknown"
 REQUIRED_COLUMNS = IDENTIFIER_COLUMNS + CATEGORICAL_FEATURES + NUMERICAL_FEATURES + [
     TARGET_COLUMN,
 ] + LEAKAGE_COLUMNS
@@ -32,7 +33,9 @@ def prepare_raw_frame(frame: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
     if frame.empty:
         raise ValueError("Dataset must contain at least one row")
-    if frame[REQUIRED_COLUMNS].isna().any().any():
+    frame[CATEGORICAL_FEATURES] = frame[CATEGORICAL_FEATURES].fillna(MISSING_CATEGORY)
+    non_imputable_columns = IDENTIFIER_COLUMNS + NUMERICAL_FEATURES + [TARGET_COLUMN] + LEAKAGE_COLUMNS
+    if frame[non_imputable_columns].isna().any().any():
         raise ValueError("Dataset contains missing values in required columns")
     return frame.copy()
 

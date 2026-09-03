@@ -46,7 +46,9 @@ def prepare_data(raw_dataset: dsl.Input[dsl.Dataset], train_dataset: dsl.Output[
     missing = [column for column in required if column not in frame.columns]
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
-    if frame[required].isna().any().any():
+    frame[categorical] = frame[categorical].fillna("Unknown")
+    non_imputable = ["student_id", *numerical, "final_exam_score", "final_grade"]
+    if frame[non_imputable].isna().any().any():
         raise ValueError("Dataset contains missing values in required columns")
     selected = frame[categorical + numerical + ["final_exam_score"]]
     train, test = train_test_split(selected, test_size=0.2, random_state=42)

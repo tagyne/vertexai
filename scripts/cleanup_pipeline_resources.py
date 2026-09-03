@@ -26,6 +26,8 @@ class CleanupPlan:
     custom_jobs: list[Any] = field(default_factory=list)
     models: list[Any] = field(default_factory=list)
     metadata_contexts: set[str] = field(default_factory=set)
+    metadata_executions: set[str] = field(default_factory=set)
+    metadata_artifacts: set[str] = field(default_factory=set)
     buckets: list[Any] = field(default_factory=list)
 
 
@@ -69,6 +71,10 @@ def collect_plan(project: str, region: str) -> CleanupPlan:
         context_id = context.name.rsplit("/", 1)[-1]
         if context_id.startswith(PIPELINE_NAME):
             plan.metadata_contexts.add(context.name)
+    for context_name in plan.metadata_contexts:
+        lineage = metadata_client.query_context_lineage_subgraph(context=context_name)
+        plan.metadata_executions.update(execution.name for execution in lineage.executions)
+        plan.metadata_artifacts.update(artifact.name for artifact in lineage.artifacts)
 
     for job in aiplatform.CustomJob.list(project=project, location=region):
         labels = getattr(job, "labels", {}) or {}
@@ -89,6 +95,8 @@ def print_plan(plan: CleanupPlan, project: str, region: str) -> None:
     print(f"- completed pipeline jobs: {len(plan.pipelines)}")
     print(f"- completed custom training jobs: {len(plan.custom_jobs)}")
     print(f"- pipeline metadata contexts: {len(plan.metadata_contexts)}")
+    print(f"- metadata executions: {len(plan.metadata_executions)}")
+    print(f"- metadata artifacts: {len(plan.metadata_artifacts)}")
     print(f"- labeled model resources: {len(plan.models)}")
     print(f"- labeled ML buckets (pipeline-root/ and pipeline-tmp/ only): {len(plan.buckets)}")
     print("Protected: Terraform backend, service account, IAM, and stable endpoint.")
@@ -105,12 +113,22 @@ def delete_plan(plan: CleanupPlan, project: str, region: str) -> None:
     metadata_client = MetadataServiceClient(
         client_options={"api_endpoint": f"{region}-aiplatform.googleapis.com"}
     )
-    for context_name in sorted(plan.metadata_contexts):
+    for execution_name in sorted(plan.metadata_executions):
+        print(f"Deleting metadata execution: {execution_name}")
+        try:
+            metadata_client.delete_execution(name=execution_name).result()
+        except NotFound:
+            pass
+    for artifact_name in sorted(plan.metadata_artifacts):
+        print(f"Deleting metadata artifact: {artifact_name}")
+        try:
+            metadata_client.delete_artifact(name=artifact_name).result()
+        except NotFound:
+            pass
+    for context_name in sorted(plan.metadata_contexts, key=lambda value: value.count("/"), reverse=True):
         print(f"Deleting metadata context: {context_name}")
         try:
-            metadata_client.delete_context(
-                request={"name": context_name, "force": True}
-            ).result()
+            metadata_client.delete_context(name=context_name).result()
         except NotFound:
             print(f"Metadata context already absent: {context_name}")
     for job in plan.custom_jobs:

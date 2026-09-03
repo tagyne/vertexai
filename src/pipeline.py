@@ -121,7 +121,7 @@ def deploy_model(model_resource_name: str, project: str, region: str, endpoint_i
 
     aiplatform.init(project=project, location=region)
     model = aiplatform.Model(model_name=model_resource_name)
-    endpoint = aiplatform.Endpoint(endpoint_id=endpoint_id)
+    endpoint = aiplatform.Endpoint(endpoint_name=endpoint_id)
     model.deploy(endpoint=endpoint, machine_type="n1-standard-4", min_replica_count=1, max_replica_count=1)
 
 

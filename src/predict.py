@@ -35,6 +35,6 @@ def predict_endpoint(
     """Call an existing endpoint after validating the raw feature contract."""
     validated_instances = parse_prediction_request({"instances": instances})
     aiplatform.init(project=project, location=region)
-    endpoint = aiplatform.Endpoint(endpoint_id=endpoint_id)
+    endpoint = aiplatform.Endpoint(endpoint_name=endpoint_id)
     response = endpoint.predict(instances=validated_instances)
     return format_prediction_response([float(value) for value in response.predictions])

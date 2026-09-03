@@ -3,7 +3,7 @@
 from kfp import dsl
 
 
-@dsl.component(base_image="python:3.11", packages_to_install=["kagglehub==0.3.12"])
+@dsl.component(base_image="python:3.11", packages_to_install=["kagglehub==1.0.2"])
 def download_dataset(dataset: dsl.Output[dsl.Dataset]) -> None:
     """Download the public Kaggle dataset into a pipeline artifact."""
     import shutil

@@ -7,7 +7,7 @@ dependencies = [
   "google-cloud-aiplatform==1.71.1",
   "google-cloud-storage==2.18.2",
   "joblib==1.4.2",
-  "kagglehub==0.3.12",
+  "kagglehub==1.0.2",
   "kfp==2.9.0",
   "pandas==2.2.3",
   "scikit-learn==1.5.2",

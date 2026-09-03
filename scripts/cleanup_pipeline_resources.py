@@ -45,7 +45,6 @@ def has_project_labels(resource: Any) -> bool:
 def collect_plan(project: str, region: str) -> CleanupPlan:
     aiplatform.init(project=project, location=region)
     plan = CleanupPlan()
-    pipeline_billing_ids: set[str] = set()
     for job in aiplatform.PipelineJob.list(project=project, location=region):
         labels = getattr(job, "labels", {}) or {}
         if getattr(job, "display_name", "") != PIPELINE_NAME:
@@ -55,18 +54,25 @@ def collect_plan(project: str, region: str) -> CleanupPlan:
         if state_name(job) not in PIPELINE_TERMINAL_STATES:
             continue
         plan.pipelines.append(job)
-        pipeline_billing_ids.add(labels.get(PIPELINE_BILLING_LABEL, ""))
         detail = getattr(getattr(job, "_gca_resource", None), "job_detail", None)
         for attribute in ("pipeline_context", "pipeline_run_context"):
             context = getattr(detail, attribute, None) if detail else None
             context_name = getattr(context, "name", "") if context else ""
             if context_name:
                 plan.metadata_contexts.add(context_name)
+
+    metadata_client = MetadataServiceClient(
+        client_options={"api_endpoint": f"{region}-aiplatform.googleapis.com"}
+    )
+    metadata_parent = f"projects/{project}/locations/{region}/metadataStores/default"
+    for context in metadata_client.list_contexts(parent=metadata_parent):
+        context_id = context.name.rsplit("/", 1)[-1]
+        if context_id.startswith(PIPELINE_NAME):
+            plan.metadata_contexts.add(context.name)
+
     for job in aiplatform.CustomJob.list(project=project, location=region):
         labels = getattr(job, "labels", {}) or {}
-        if labels.get(PIPELINE_BILLING_LABEL) not in pipeline_billing_ids:
-            continue
-        if "vertex_pipelines" not in labels:
+        if not labels.get(PIPELINE_BILLING_LABEL) or "vertex_pipelines" not in labels:
             continue
         if state_name(job) in JOB_TERMINAL_STATES:
             plan.custom_jobs.append(job)

@@ -3,13 +3,27 @@
 from kfp import dsl
 
 
-@dsl.component(base_image="python:3.11", packages_to_install=["kagglehub==1.0.2"])
-def download_dataset(dataset: dsl.Output[dsl.Dataset]) -> None:
+@dsl.component(base_image="python:3.11", packages_to_install=[
+    "google-cloud-secret-manager==2.22.0", "kagglehub==1.0.2",
+])
+def download_dataset(project: str, dataset: dsl.Output[dsl.Dataset]) -> None:
     """Download the public Kaggle dataset into a pipeline artifact."""
     import shutil
     from pathlib import Path
+    import os
+    from google.cloud import secretmanager
     import kagglehub
 
+    client = secretmanager.SecretManagerServiceClient()
+
+    def read_secret(secret_id: str) -> str:
+        response = client.access_secret_version(
+            name=f"projects/{project}/secrets/{secret_id}/versions/latest",
+        )
+        return response.payload.data.decode("utf-8")
+
+    os.environ["KAGGLE_USERNAME"] = read_secret("kaggle-username")
+    os.environ["KAGGLE_KEY"] = read_secret("kaggle-key")
     downloaded = Path(kagglehub.dataset_download(
         "harshadapatil31/student-performance-and-study-habits-dataset",
     ))
@@ -111,7 +125,7 @@ def deploy_model(model_resource_name: str, project: str, region: str, endpoint_i
 
 @dsl.pipeline(name="student-performance-pipeline")
 def student_performance_pipeline(project: str, region: str, endpoint_id: str, model_display_name: str = "student-performance") -> None:
-    raw = download_dataset()
+    raw = download_dataset(project=project)
     prepared = prepare_data(raw_dataset=raw.outputs["dataset"])
     trained = train_model(train_dataset=prepared.outputs["train_dataset"])
     evaluated = evaluate_model(test_dataset=prepared.outputs["test_dataset"], model=trained.outputs["model"])

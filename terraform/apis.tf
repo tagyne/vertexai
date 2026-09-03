@@ -4,6 +4,7 @@ locals {
     "artifactregistry.googleapis.com",
     "iam.googleapis.com",
     "serviceusage.googleapis.com",
+    "secretmanager.googleapis.com",
     "storage.googleapis.com",
   ])
   labels = {

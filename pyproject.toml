@@ -5,6 +5,7 @@ description = "Reproducible Vertex AI MLOps MVP for student performance predicti
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "google-cloud-aiplatform==1.71.1",
+  "google-cloud-secret-manager==2.22.0",
   "google-cloud-storage==2.18.2",
   "joblib==1.4.2",
   "kagglehub==1.0.2",

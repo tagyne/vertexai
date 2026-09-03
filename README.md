@@ -12,6 +12,9 @@ Performance and Study Habits dataset and runs the workflow on Vertex AI.
    and `apply`.
 4. Run `uv python pin 3.11`, `uv sync`, then:
 
+Add the Kaggle credentials to Secret Manager as described in
+[Kaggle secrets](docs/kaggle-secrets.md), then launch the pipeline:
+
 ```bash
 uv run pytest -q
 uv run python -m src.submit --project "$GOOGLE_CLOUD_PROJECT" \

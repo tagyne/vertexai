@@ -266,6 +266,22 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-secret-manager"
+version = "2.22.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/05/4a/985b3dafcf235198e06460ecf1b2a41ae3810c006a629d723292b06425a0/google_cloud_secret_manager-2.22.0.tar.gz", hash = "sha256:5dd95ac6243687f86fd803316c0768f507028958b8a2e69b3aa0ace7ac654bf4", size = 255438, upload-time = "2024-12-13T01:12:02.955Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/c9/0776a4d3cbc052fe859e6d44078345f2d3acb4bd3a86ffddda8753f2d413/google_cloud_secret_manager-2.22.0-py2.py3-none-any.whl", hash = "sha256:9e23a8165ed718de56543723b1e21c394f2cee9ababddcac8ceecc9f427d2696", size = 208206, upload-time = "2024-12-13T01:12:01.458Z" },
+]
+
+[[package]]
 name = "google-cloud-storage"
 version = "2.18.2"
 source = { registry = "https://pypi.org/simple" }
@@ -846,6 +862,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "google-cloud-aiplatform" },
+    { name = "google-cloud-secret-manager" },
     { name = "google-cloud-storage" },
     { name = "joblib" },
     { name = "kagglehub" },
@@ -862,6 +879,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "google-cloud-aiplatform", specifier = "==1.71.1" },
+    { name = "google-cloud-secret-manager", specifier = "==2.22.0" },
     { name = "google-cloud-storage", specifier = "==2.18.2" },
     { name = "joblib", specifier = "==1.4.2" },
     { name = "kagglehub", specifier = "==1.0.2" },

@@ -29,8 +29,7 @@ def submit(project: str, region: str, pipeline_root: str,
         pipeline_root=pipeline_root,
         labels=PIPELINE_LABELS,
         parameter_values={"project": project,
-                          "region": region, "endpoint_id": endpoint_id,
-                          "dataset_version": "1"},
+                          "region": region, "endpoint_id": endpoint_id},
     )
     job.submit(service_account=service_account)
 

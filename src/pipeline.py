@@ -6,7 +6,7 @@ from kfp import dsl
 @dsl.component(base_image="python:3.11", packages_to_install=[
     "google-cloud-secret-manager==2.22.0", "kagglehub==1.0.2",
 ])
-def download_dataset(project: str, dataset: dsl.Output[dsl.Dataset]) -> None:
+def download_dataset(project: str, dataset_version: str, dataset: dsl.Output[dsl.Dataset]) -> None:
     """Download the public Kaggle dataset into a pipeline artifact."""
     import shutil
     from pathlib import Path
@@ -25,7 +25,7 @@ def download_dataset(project: str, dataset: dsl.Output[dsl.Dataset]) -> None:
     os.environ["KAGGLE_USERNAME"] = read_secret("kaggle-username")
     os.environ["KAGGLE_KEY"] = read_secret("kaggle-key")
     downloaded = Path(kagglehub.dataset_download(
-        "harshadapatil31/student-performance-and-study-habits-dataset",
+        f"harshadapatil31/student-performance-and-study-habits-dataset/versions/{dataset_version}",
     ))
     csv_files = list(downloaded.rglob("*.csv")) if downloaded.is_dir() else [downloaded]
     if len(csv_files) != 1:
@@ -126,11 +126,13 @@ def deploy_model(model_resource_name: str, project: str, region: str, endpoint_i
 
 
 @dsl.pipeline(name="student-performance-pipeline")
-def student_performance_pipeline(project: str, region: str, endpoint_id: str, model_display_name: str = "student-performance") -> None:
-    raw = download_dataset(project=project)
+def student_performance_pipeline(project: str, region: str, endpoint_id: str, dataset_version: str = "1", model_display_name: str = "student-performance") -> None:
+    raw = download_dataset(project=project, dataset_version=dataset_version)
     prepared = prepare_data(raw_dataset=raw.outputs["dataset"])
     trained = train_model(train_dataset=prepared.outputs["train_dataset"])
     evaluated = evaluate_model(test_dataset=prepared.outputs["test_dataset"], model=trained.outputs["model"])
     registered = register_model(model=trained.outputs["model"], project=project, region=region, model_display_name=model_display_name)
+    registered.set_caching_options(False)
     deploy = deploy_model(model_resource_name=registered.outputs["model_resource_name"], project=project, region=region, endpoint_id=endpoint_id)
+    deploy.set_caching_options(False)
     deploy.after(evaluated)

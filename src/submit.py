@@ -24,12 +24,13 @@ def submit(project: str, region: str, pipeline_root: str,
     aiplatform.init(project=project, location=region, staging_bucket=pipeline_root)
     job = aiplatform.PipelineJob(
         display_name="student-performance-pipeline",
-        enable_caching=False,
+        enable_caching=None,
         template_path=str(output_path),
         pipeline_root=pipeline_root,
         labels=PIPELINE_LABELS,
         parameter_values={"project": project,
-                          "region": region, "endpoint_id": endpoint_id},
+                          "region": region, "endpoint_id": endpoint_id,
+                          "dataset_version": "1"},
     )
     job.submit(service_account=service_account)
 

@@ -1,6 +1,10 @@
 import pytest
 
-from src.predict import parse_prediction_request, format_prediction_response
+from src.predict import (
+    format_prediction_response,
+    parse_prediction_request,
+    to_vertex_instances,
+)
 
 
 def test_prediction_request_requires_all_raw_features() -> None:
@@ -17,3 +21,15 @@ def test_prediction_contract_round_trips_instances_and_response() -> None:
 
     assert parse_prediction_request({"instances": [instance]}) == [instance]
     assert format_prediction_response([76.4]) == {"predictions": [{"predicted_final_exam_score": 76.4}]}
+
+
+def test_prediction_instances_are_ordered_for_vertex_ai() -> None:
+    instance = {
+        "gender": "Female", "study_time_hours": 4.0, "attendance_percent": 88.0,
+        "sleep_hours": 7.0, "parental_education": "Bachelors", "internet_access": "Yes",
+        "extracurricular_activities": "Yes", "part_time_job": "No", "previous_grade": 76.9,
+    }
+
+    assert to_vertex_instances([instance]) == [[
+        "Female", "Bachelors", "Yes", "Yes", "No", 4.0, 88.0, 7.0, 76.9,
+    ]]

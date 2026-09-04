@@ -16,8 +16,8 @@ from src.data import CATEGORICAL_FEATURES, NUMERICAL_FEATURES
 def build_preprocessor() -> ColumnTransformer:
     return ColumnTransformer(
         transformers=[
-            ("categorical", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
-            ("numerical", "passthrough", NUMERICAL_FEATURES),
+            ("categorical", OneHotEncoder(handle_unknown="ignore"), list(range(len(CATEGORICAL_FEATURES)))),
+            ("numerical", "passthrough", list(range(len(CATEGORICAL_FEATURES), len(CATEGORICAL_FEATURES) + len(NUMERICAL_FEATURES)))),
         ],
         remainder="drop",
     )
@@ -38,7 +38,7 @@ def train_model(features: pd.DataFrame, target: pd.Series, output_dir: str | Pat
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     model = build_model()
-    model.fit(features, target)
+    model.fit(features.to_numpy(), target)
     model_path = output_path / "model.joblib"
     joblib.dump(model, model_path)
     metadata = {"model_path": str(model_path), "feature_names": list(features.columns)}

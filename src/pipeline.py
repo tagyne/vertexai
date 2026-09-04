@@ -72,12 +72,12 @@ def train_model(train_dataset: dsl.Input[dsl.Dataset], model: dsl.Output[dsl.Mod
     frame = pd.read_csv(train_dataset.path)
     estimator = Pipeline([
         ("preprocessor", ColumnTransformer([
-            ("categorical", OneHotEncoder(handle_unknown="ignore"), categorical),
-            ("numerical", "passthrough", numerical),
+            ("categorical", OneHotEncoder(handle_unknown="ignore"), list(range(len(categorical)))),
+            ("numerical", "passthrough", list(range(len(categorical), len(categorical) + len(numerical)))),
         ])),
         ("regressor", RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)),
     ])
-    estimator.fit(frame[categorical + numerical], frame["final_exam_score"])
+    estimator.fit(frame[categorical + numerical].to_numpy(), frame["final_exam_score"])
     model_dir = Path(model.path)
     model_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(estimator, model_dir / "model.joblib")

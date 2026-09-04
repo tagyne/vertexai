@@ -25,6 +25,11 @@ def parse_prediction_request(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return instances
 
 
+def to_vertex_instances(instances: list[dict[str, Any]]) -> list[list[Any]]:
+    """Convert named application instances to Vertex AI's ordered arrays."""
+    return [[instance[feature] for feature in PREDICTION_FEATURES] for instance in instances]
+
+
 def format_prediction_response(predictions: list[float]) -> dict[str, list[dict[str, float]]]:
     return {"predictions": [{"predicted_final_exam_score": float(value)} for value in predictions]}
 
@@ -34,7 +39,8 @@ def predict_endpoint(
 ) -> dict[str, list[dict[str, float]]]:
     """Call an existing endpoint after validating the raw feature contract."""
     validated_instances = parse_prediction_request({"instances": instances})
+    vertex_instances = to_vertex_instances(validated_instances)
     aiplatform.init(project=project, location=region)
     endpoint = aiplatform.Endpoint(endpoint_name=endpoint_id)
-    response = endpoint.predict(instances=validated_instances)
+    response = endpoint.predict(instances=vertex_instances)
     return format_prediction_response([float(value) for value in response.predictions])

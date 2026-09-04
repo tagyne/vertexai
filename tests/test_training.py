@@ -26,6 +26,6 @@ def test_model_trains_on_raw_contract_columns() -> None:
         }
     )
 
-    model.fit(features, [76.4, 60.0])
+    model.fit(features.to_numpy(), [76.4, 60.0])
 
-    assert len(model.predict(features)) == 2
+    assert len(model.predict(features.to_numpy().tolist())) == 2

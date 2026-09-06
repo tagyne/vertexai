@@ -1,0 +1,13 @@
+type: array
+items:
+  type: string
+required:
+- gender
+- parental_education
+- internet_access
+- extracurricular_activities
+- part_time_job
+- study_time_hours
+- attendance_percent
+- sleep_hours
+- previous_grade

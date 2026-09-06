@@ -56,6 +56,19 @@ def prepare_data(raw_dataset: dsl.Input[dsl.Dataset], train_dataset: dsl.Output[
     test.to_csv(test_dataset.path, index=False)
 
 
+@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-storage==2.18.2"])
+def publish_baseline(train_dataset: dsl.Input[dsl.Dataset], baseline_uri: str) -> None:
+    """Publish the training data at a durable URI used by Model Monitoring."""
+    from google.cloud import storage
+
+    if not baseline_uri.startswith("gs://"):
+        raise ValueError("baseline_uri must be a gs:// URI")
+    bucket_name, object_name = baseline_uri[5:].split("/", 1)
+    storage.Client().bucket(bucket_name).blob(object_name).upload_from_filename(
+        train_dataset.path, content_type="text/csv"
+    )
+
+
 @dsl.component(base_image="python:3.11", packages_to_install=["joblib==1.4.2", "pandas==2.2.3", "scikit-learn==1.5.2"])
 def train_model(train_dataset: dsl.Input[dsl.Dataset], model: dsl.Output[dsl.Model]) -> None:
     """Train and serialize the preprocessing and regression pipeline."""
@@ -125,10 +138,103 @@ def deploy_model(model_resource_name: str, project: str, region: str, endpoint_i
     model.deploy(endpoint=endpoint, machine_type="e2-standard-4", min_replica_count=1, max_replica_count=1)
 
 
+@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-aiplatform==1.71.1"])
+def configure_monitoring(
+    model_resource_name: str,
+    project: str,
+    region: str,
+    endpoint_id: str,
+    baseline_uri: str,
+    schema_uri: str,
+    notification_channel: str,
+) -> None:
+    """Create or update Model Monitoring for the deployed model."""
+    from google.cloud import aiplatform
+    from google.cloud.aiplatform import model_monitoring
+
+    monitored_features = [
+        "gender", "parental_education", "internet_access",
+        "extracurricular_activities", "part_time_job", "study_time_hours",
+        "attendance_percent", "sleep_hours", "previous_grade",
+    ]
+    endpoint_resource = endpoint_id if endpoint_id.startswith("projects/") else (
+        f"projects/{project}/locations/{region}/endpoints/{endpoint_id}"
+    )
+    aiplatform.init(project=project, location=region)
+    endpoint = aiplatform.Endpoint(endpoint_resource)
+    deployed_model_id = next(
+        (model.id for model in endpoint.list_models() if model.model == model_resource_name),
+        None,
+    )
+    if deployed_model_id is None:
+        raise ValueError(f"Model {model_resource_name} is not deployed on the endpoint")
+    objective = model_monitoring.ObjectiveConfig(
+        skew_detection_config=model_monitoring.SkewDetectionConfig(
+            data_source=baseline_uri,
+            data_format="csv",
+            target_field="final_exam_score",
+            skew_thresholds=0.2,
+        ),
+        drift_detection_config=model_monitoring.DriftDetectionConfig(
+            drift_thresholds={feature: 0.2 for feature in monitored_features},
+        ),
+    )
+    schedule = model_monitoring.ScheduleConfig(monitor_interval=24)
+    sampling = model_monitoring.RandomSampleConfig(sample_rate=0.5)
+    alert = model_monitoring.AlertConfig(
+        enable_logging=True,
+        notification_channels=[notification_channel],
+    )
+    labels = {
+        "project": "student-performance-mlops",
+        "managed_by": "vertex-pipeline",
+        "environment": "dev",
+    }
+    jobs = aiplatform.ModelDeploymentMonitoringJob.list(
+        filter='display_name="student-performance-monitoring"',
+        project=project,
+        location=region,
+    )
+    if jobs:
+        jobs[0].update(
+            objective_configs=objective,
+            deployed_model_ids=[deployed_model_id],
+            schedule_config=schedule,
+            logging_sampling_strategy=sampling,
+            alert_config=alert,
+            labels=labels,
+        )
+    else:
+        aiplatform.ModelDeploymentMonitoringJob.create(
+            endpoint=endpoint,
+            objective_configs=objective,
+            deployed_model_ids=[deployed_model_id],
+            logging_sampling_strategy=sampling,
+            schedule_config=schedule,
+            display_name="student-performance-monitoring",
+            alert_config=alert,
+            analysis_instance_schema_uri=schema_uri,
+            labels=labels,
+        )
+
+
 @dsl.pipeline(name="student-performance-pipeline")
-def student_performance_pipeline(project: str, region: str, endpoint_id: str, model_display_name: str = "student-performance") -> None:
+def student_performance_pipeline(
+    project: str,
+    region: str,
+    endpoint_id: str,
+    monitoring_baseline_uri: str = "",
+    monitoring_schema_uri: str = "",
+    monitoring_notification_channel: str = "",
+    model_display_name: str = "student-performance",
+) -> None:
     raw = download_dataset(project=project)
     prepared = prepare_data(raw_dataset=raw.outputs["dataset"])
+    baseline = publish_baseline(
+        train_dataset=prepared.outputs["train_dataset"],
+        baseline_uri=monitoring_baseline_uri,
+    )
+    baseline.set_caching_options(False)
     trained = train_model(train_dataset=prepared.outputs["train_dataset"])
     evaluated = evaluate_model(test_dataset=prepared.outputs["test_dataset"], model=trained.outputs["model"])
     registered = register_model(model=trained.outputs["model"], project=project, region=region, model_display_name=model_display_name)
@@ -136,3 +242,14 @@ def student_performance_pipeline(project: str, region: str, endpoint_id: str, mo
     deploy = deploy_model(model_resource_name=registered.outputs["model_resource_name"], project=project, region=region, endpoint_id=endpoint_id)
     deploy.set_caching_options(False)
     deploy.after(evaluated)
+    monitoring = configure_monitoring(
+        model_resource_name=registered.outputs["model_resource_name"],
+        project=project,
+        region=region,
+        endpoint_id=endpoint_id,
+        baseline_uri=monitoring_baseline_uri,
+        schema_uri=monitoring_schema_uri,
+        notification_channel=monitoring_notification_channel,
+    )
+    monitoring.set_caching_options(False)
+    monitoring.after(deploy)

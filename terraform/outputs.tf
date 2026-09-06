@@ -17,3 +17,19 @@ output "kaggle_username_secret_id" {
 output "kaggle_key_secret_id" {
   value = google_secret_manager_secret.kaggle_key.secret_id
 }
+
+output "monitoring_notification_channel" {
+  value = google_monitoring_notification_channel.monitoring_pubsub.name
+}
+
+output "monitoring_alert_topic" {
+  value = google_pubsub_topic.monitoring_alerts.id
+}
+
+output "monitoring_baseline_uri" {
+  value = "gs://${google_storage_bucket.ml.name}/monitoring/baselines/student-performance/latest/train.csv"
+}
+
+output "monitoring_schema_uri" {
+  value = "gs://${google_storage_bucket.ml.name}/monitoring/schema/analysis-instance.yaml"
+}

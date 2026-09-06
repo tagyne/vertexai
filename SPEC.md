@@ -18,7 +18,9 @@ L’objectif principal est l’apprentissage pratique de Vertex AI, Terraform et
 - service account du pipeline ;
 - IAM minimal nécessaire ;
 - ressource modèle Vertex AI/Model Registry déclarée par l’infrastructure ;
-- endpoint Vertex AI stable.
+- endpoint Vertex AI stable ;
+- topic Pub/Sub, canal de notification et Cloud Function de demande de
+  retraining.
 
 Toutes les ressources Vertex AI et GCS devront utiliser les labels suivants lorsque le service les supporte :
 
@@ -36,7 +38,9 @@ environment = dev
 - artefact du modèle ;
 - publication de la version issue du run ;
 - déploiement direct du modèle sur l’endpoint existant ;
-- exécution et métadonnées du pipeline.
+- exécution et métadonnées du pipeline ;
+- baseline durable et configuration idempotente de Model Monitoring après le
+  déploiement.
 
 Une ressource durable ne doit pas être gérée simultanément par Terraform et le pipeline.
 
@@ -49,6 +53,8 @@ Une ressource durable ne doit pas être gérée simultanément par Terraform et 
 - Vertex AI Pipelines ;
 - Terraform avec le provider Google ;
 - Google Cloud Storage ;
+- Vertex AI Model Monitoring ;
+- Pub/Sub et Cloud Functions 2nd gen pour les demandes de validation ;
 - authentification locale par Application Default Credentials ;
 - Git pour le versionnement du code.
 
@@ -213,7 +219,7 @@ Il devra afficher les cibles, demander une confirmation, être idempotent et ref
 ## Boundaries
 
 - **Always:** utiliser les ADC locales ; utiliser `uv` ; committer `pyproject.toml`, `.python-version` et `uv.lock` ; valider les entrées ; journaliser les étapes ; exécuter les tests avant validation ; nettoyer les ressources payantes ; conserver les secrets hors Git.
-- **Ask first:** modifier le périmètre du MVP ; ajouter une base de données ; ajouter un conteneur Docker personnalisé ; modifier le backend Terraform ; rendre le pipeline automatique ; ajouter du monitoring ou du retraining.
+- **Ask first:** modifier le périmètre du MVP ; ajouter une base de données ; ajouter un conteneur Docker personnalisé ; modifier le backend Terraform ; rendre le pipeline automatique ; ajouter un retraining automatique.
 - **Never:** committer une clé de service ou un secret ; supprimer sans confirmation ; faire gérer la même ressource par Terraform et le pipeline ; supprimer le bucket backend avec le script de nettoyage ; désactiver les tests pour faire passer une implémentation.
 
 ## Success Criteria
@@ -226,6 +232,10 @@ Il devra afficher les cibles, demander une confirmation, être idempotent et ref
 - [ ] Le modèle est enregistré dans Vertex AI Model Registry.
 - [ ] Le modèle est déployé directement sur l’endpoint Vertex AI.
 - [ ] Une requête JSON avec les colonnes brutes retourne une prédiction.
+- [ ] La baseline d’entraînement est publiée dans un chemin GCS durable.
+- [ ] Le job Model Monitoring est créé ou mis à jour après le déploiement.
+- [ ] Les alertes Model Monitoring sont publiées dans Pub/Sub.
+- [ ] La Cloud Function crée une demande de retraining `PENDING_APPROVAL` sans relancer automatiquement le pipeline.
 - [ ] Le pipeline est lançable manuellement depuis une commande locale.
 - [ ] Le script de nettoyage supprime les ressources dynamiques sans toucher aux ressources Terraform.
 - [ ] La documentation permet à une autre personne de reproduire le parcours avec ses propres identifiants GCP.
@@ -233,7 +243,6 @@ Il devra afficher les cibles, demander une confirmation, être idempotent et ref
 ## Out of Scope
 
 - CI/CD automatique ;
-- monitoring avancé ;
 - retraining automatique ;
 - déploiement conditionnel ;
 - tuning intensif des hyperparamètres ;
@@ -249,4 +258,6 @@ Il devra afficher les cibles, demander une confirmation, être idempotent et ref
 - `student_id` et `final_grade` sont exclus des features ; `final_grade` est exclue pour éviter une fuite de cible.
 - Le déploiement utilise un conteneur de prédiction scikit-learn Vertex AI préconstruit.
 - Le bucket backend Terraform est créé manuellement par un bootstrap séparé avant `terraform init`.
+- Les alertes Model Monitoring utilisent Pub/Sub ; le retraining reste soumis à
+  une validation humaine et n’est pas déclenché automatiquement.
 - Le script de nettoyage cible les ressources avec les labels `project=student-performance-mlops`, `managed_by=vertex-pipeline` et `environment=dev`.

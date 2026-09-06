@@ -1,9 +1,11 @@
 # Architecture
 
 Terraform owns the APIs, the ML bucket, the pipeline service account and IAM,
-and the stable Vertex AI endpoint. The pipeline owns dataset preparation,
-training, evaluation, model artifacts, Model Registry publication and direct
-deployment to the existing endpoint.
+the stable Vertex AI endpoint, the monitoring notification channel, and the
+Pub/Sub-triggered approval-request function. The pipeline owns dataset
+preparation, training, evaluation, model artifacts, Model Registry publication,
+direct deployment to the existing endpoint, and reconciliation of the dynamic
+Model Monitoring job after deployment.
 
 The Google Terraform provider v6.50.0 does not expose a native
 `google_vertex_ai_model` resource. The model therefore cannot be declared as a
@@ -15,8 +17,16 @@ Terraform.
 
 The pipeline uses the prebuilt sklearn 1.5 prediction container and embeds the
 preprocessing and regressor in one scikit-learn `Pipeline`. It downloads the
-public Kaggle dataset directly with `kagglehub.dataset_download`, so no dataset
-upload to Cloud Storage is required.
+public Kaggle dataset directly with `kagglehub.dataset_download`. The training
+split used as the monitoring baseline is explicitly uploaded to Cloud Storage.
+
+After preparation, the pipeline publishes the training split to a durable
+monitoring baseline URI. After deployment, it creates or updates one
+`ModelDeploymentMonitoringJob` for the stable endpoint. The job monitors
+training-serving skew and prediction drift every 24 hours, samples 50% of
+prediction logs, and sends anomalies to the Terraform-managed Pub/Sub
+notification channel. The Cloud Function stores a `PENDING_APPROVAL` request
+in GCS; it never launches a retraining pipeline automatically.
 
 The downloaded dataset currently contains 102 missing values in the
 `parental_education` categorical feature. The preparation stage maps missing

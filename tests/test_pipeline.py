@@ -21,7 +21,7 @@ def test_pipeline_contains_one_component_per_stage(tmp_path: Path) -> None:
     pipeline_text = output.read_text(encoding="utf-8")
 
     for component_name in (
-        "download-dataset", "prepare-data", "train-model", "evaluate-model",
-        "register-model", "deploy-model",
+        "download-dataset", "prepare-data", "publish-baseline", "train-model",
+        "evaluate-model", "register-model", "deploy-model", "configure-monitoring",
     ):
         assert component_name in pipeline_text

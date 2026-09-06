@@ -20,8 +20,10 @@ uv run pytest -q
 uv run python -m src.submit --project "$GOOGLE_CLOUD_PROJECT" \
   --region "${VERTEX_REGION:-europe-west9}" \
   --pipeline-root "gs://<ML_BUCKET>/pipeline-root" \
-  --endpoint-id "<ENDPOINT_ID>"
+  --endpoint-id "<ENDPOINT_ID>" \
+  --monitoring-notification-channel "<NOTIFICATION_CHANNEL_RESOURCE_NAME>"
 ```
 
 See [prediction-contract.md](docs/prediction-contract.md),
-[architecture.md](docs/architecture.md), and [cleanup.md](docs/cleanup.md).
+[architecture.md](docs/architecture.md), [monitoring.md](docs/monitoring.md),
+and [cleanup.md](docs/cleanup.md).

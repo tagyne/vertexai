@@ -5,6 +5,7 @@ from src.monitoring import (
     build_monitoring_job_payload,
     find_deployed_model_id,
 )
+from src.submit import monitoring_uri_from_pipeline_root
 
 
 def test_find_deployed_model_id_matches_registered_model() -> None:
@@ -40,3 +41,17 @@ def test_monitoring_payload_configures_skew_drift_and_pubsub() -> None:
     assert payload["modelMonitoringAlertConfig"]["notificationChannels"] == [
         "projects/p/notificationChannels/123"
     ]
+
+
+def test_monitoring_uris_are_derived_from_pipeline_bucket() -> None:
+    baseline_uri, schema_uri = monitoring_uri_from_pipeline_root(
+        "gs://student-performance-mlops-p/pipeline-root"
+    )
+
+    assert baseline_uri == "gs://student-performance-mlops-p/monitoring/baselines/student-performance/latest/train.csv"
+    assert schema_uri == "gs://student-performance-mlops-p/monitoring/schema/analysis-instance.yaml"
+
+
+def test_monitoring_uris_require_pipeline_root_convention() -> None:
+    with pytest.raises(ValueError, match="pipeline-root"):
+        monitoring_uri_from_pipeline_root("gs://bucket/artifacts")

@@ -30,7 +30,7 @@ Use four-space indentation, Python type hints, short docstrings, and `snake_case
 
 ## Testing Guidelines
 
-Tests use pytest and live in `tests/test_*.py`. Never place test code, test fixtures, or test-only helpers in `src/`; keep them in `tests/` instead. Add focused tests for new behavior, especially input validation, pipeline contracts, idempotency, and monitoring payloads. Prefer local fakes over calls to live GCP services; run `uv run pytest -q` before committing.
+Tests use pytest and live in `tests/test_*.py`. Never place test code, test fixtures, or test-only helpers in `src/`; keep them in `tests/` instead. Helpers used exclusively by tests belong in `tests/`, and unused application helpers should be removed rather than retained in `src/`. Add focused tests for new behavior, especially input validation, pipeline contracts, idempotency, and monitoring payloads. Prefer local fakes over calls to live GCP services; run `uv run pytest -q` before committing.
 
 ## Commits and Pull Requests
 

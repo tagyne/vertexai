@@ -37,59 +37,6 @@ def find_deployed_model_id(
     raise ValueError(f"Model {model_resource_name} is not deployed on the endpoint")
 
 
-def _thresholds() -> dict[str, dict[str, float]]:
-    return {feature: {"value": DEFAULT_DRIFT_THRESHOLD} for feature in MONITORED_FEATURES}
-
-
-def build_monitoring_job_payload(
-    endpoint_resource_name: str,
-    deployed_model_id: str,
-    baseline_uri: str,
-    schema_uri: str,
-    notification_channel: str,
-) -> dict[str, Any]:
-    """Build the v1 ModelDeploymentMonitoringJob request body."""
-    thresholds = _thresholds()
-    return {
-        "displayName": MONITORING_JOB_DISPLAY_NAME,
-        "endpoint": endpoint_resource_name,
-        "modelDeploymentMonitoringObjectiveConfigs": [
-            {
-                "deployedModelId": deployed_model_id,
-                "objectiveConfig": {
-                    "trainingDataset": {
-                        "dataFormat": "csv",
-                        "gcsSource": {"uris": [baseline_uri]},
-                        "targetField": "final_exam_score",
-                    },
-                    "trainingPredictionSkewDetectionConfig": {
-                        "skewThresholds": thresholds,
-                    },
-                    "predictionDriftDetectionConfig": {
-                        "driftThresholds": _thresholds(),
-                    },
-                },
-            }
-        ],
-        "loggingSamplingStrategy": {
-            "randomSampleConfig": {"sampleRate": 0.5},
-        },
-        "modelDeploymentMonitoringScheduleConfig": {
-            "monitorInterval": {"seconds": 86400},
-        },
-        "modelMonitoringAlertConfig": {
-            "enableLogging": True,
-            "notificationChannels": [notification_channel],
-        },
-        "analysisInstanceSchemaUri": schema_uri,
-        "labels": {
-            "project": "student-performance-mlops",
-            "managed_by": "vertex-pipeline",
-            "environment": "dev",
-        },
-    }
-
-
 def ensure_monitoring_job(
     project: str,
     region: str,

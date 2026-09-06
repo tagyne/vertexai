@@ -24,6 +24,14 @@ uv run python -m src.submit --project "$GOOGLE_CLOUD_PROJECT" \
   --monitoring-notification-channel "<NOTIFICATION_CHANNEL_RESOURCE_NAME>"
 ```
 
+After `terraform apply`, the same submission can be driven from Terraform
+outputs:
+
+```bash
+uv run python scripts/submit_pipeline.py \
+  --project "$GOOGLE_CLOUD_PROJECT"
+```
+
 See [prediction-contract.md](docs/prediction-contract.md),
 [architecture.md](docs/architecture.md), [monitoring.md](docs/monitoring.md),
 and [cleanup.md](docs/cleanup.md).

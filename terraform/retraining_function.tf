@@ -17,6 +17,44 @@ resource "google_service_account" "retraining_request" {
   project      = var.project_id
 }
 
+data "google_client_openid_userinfo" "terraform_runner" {}
+
+resource "google_service_account_iam_member" "retraining_request_act_as" {
+  service_account_id = google_service_account.retraining_request.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "user:${data.google_client_openid_userinfo.terraform_runner.email}"
+}
+
+resource "google_service_account" "retraining_build" {
+  account_id   = "student-perf-fn-build"
+  display_name = "Student performance Cloud Functions build"
+  project      = var.project_id
+}
+
+resource "google_service_account_iam_member" "retraining_build_act_as" {
+  service_account_id = google_service_account.retraining_build.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "user:${data.google_client_openid_userinfo.terraform_runner.email}"
+}
+
+resource "google_project_iam_member" "retraining_build_logs" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.retraining_build.email}"
+}
+
+resource "google_project_iam_member" "retraining_build_artifact_registry" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${google_service_account.retraining_build.email}"
+}
+
+resource "google_project_iam_member" "retraining_build_storage" {
+  project = var.project_id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.retraining_build.email}"
+}
+
 resource "google_storage_bucket_iam_member" "retraining_request_storage" {
   bucket = google_storage_bucket.ml.name
   role   = "roles/storage.objectCreator"
@@ -42,8 +80,9 @@ resource "google_cloudfunctions2_function" "retraining_request" {
   description = "Persist Model Monitoring alerts for human retraining approval"
 
   build_config {
-    runtime     = "python311"
-    entry_point = "handle_retraining_request"
+    runtime         = "python311"
+    entry_point     = "handle_retraining_request"
+    service_account = google_service_account.retraining_build.id
     source {
       storage_source {
         bucket = google_storage_bucket.ml.name
@@ -72,6 +111,11 @@ resource "google_cloudfunctions2_function" "retraining_request" {
 
   depends_on = [
     google_project_service.required,
+    google_project_iam_member.retraining_build_artifact_registry,
+    google_project_iam_member.retraining_build_logs,
+    google_project_iam_member.retraining_build_storage,
+    google_service_account_iam_member.retraining_build_act_as,
+    google_service_account_iam_member.retraining_request_act_as,
     google_storage_bucket_iam_member.retraining_request_storage,
     google_project_iam_member.retraining_request_event_receiver,
     google_project_iam_member.retraining_request_invoker,

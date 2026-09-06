@@ -14,6 +14,13 @@ resource "google_monitoring_notification_channel" "monitoring_pubsub" {
   user_labels = local.labels
 }
 
+resource "google_project_service_identity" "monitoring_notification" {
+  provider   = google-beta
+  project    = var.project_id
+  service    = "monitoring.googleapis.com"
+  depends_on = [google_project_service.required]
+}
+
 resource "google_storage_bucket_object" "monitoring_schema" {
   bucket       = google_storage_bucket.ml.name
   name         = "monitoring/schema/analysis-instance.yaml"
@@ -25,10 +32,6 @@ resource "google_pubsub_topic_iam_member" "monitoring_publisher" {
   project    = var.project_id
   topic      = google_pubsub_topic.monitoring_alerts.name
   role       = "roles/pubsub.publisher"
-  member     = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-monitoring-notification.iam.gserviceaccount.com"
+  member     = google_project_service_identity.monitoring_notification.member
   depends_on = [google_project_service.required]
-}
-
-data "google_project" "current" {
-  project_id = var.project_id
 }

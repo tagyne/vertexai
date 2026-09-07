@@ -4,14 +4,16 @@ Terraform provisions the durable monitoring plumbing:
 
 - a Pub/Sub topic for Model Monitoring alerts;
 - a Cloud Monitoring Pub/Sub notification channel;
+- a BigQuery dataset for Vertex AI endpoint request-response logs;
 - a Cloud Functions 2nd gen handler;
 - the service account and minimal GCS/Eventarc permissions;
-- the Model Monitoring analysis schema.
+- the Model Monitoring v2 output location.
 
 The Vertex AI pipeline publishes the training split to the durable baseline
-path, deploys the model, and creates or updates the monitoring job. The
-monitoring job is deliberately not cached because it changes an external
-resource.
+path, enables endpoint request-response logging, deploys the model, and
+creates a Model Monitoring v2 monitor with a one-minute schedule. The
+monitoring step is deliberately not cached because it changes external
+resources.
 
 ## Provision the infrastructure
 

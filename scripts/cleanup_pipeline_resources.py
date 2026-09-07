@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import subprocess
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import google.cloud.aiplatform as aiplatform
@@ -18,6 +22,36 @@ PIPELINE_NAME = "student-performance-pipeline"
 PIPELINE_BILLING_LABEL = "vertex-ai-pipelines-run-billing-id"
 PIPELINE_TERMINAL_STATES = {"PIPELINE_STATE_SUCCEEDED", "PIPELINE_STATE_FAILED", "PIPELINE_STATE_CANCELLED"}
 JOB_TERMINAL_STATES = {"JOB_STATE_SUCCEEDED", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED"}
+
+
+def terraform_outputs(raw_output: str) -> dict[str, str]:
+    """Parse Terraform's JSON output and unwrap each output value."""
+    try:
+        decoded: Any = json.loads(raw_output)
+    except json.JSONDecodeError as error:
+        raise ValueError("Terraform output is not valid JSON") from error
+    if not isinstance(decoded, dict):
+        raise ValueError("Terraform output must be a JSON object")
+
+    outputs: dict[str, str] = {}
+    for name, item in decoded.items():
+        if not isinstance(item, dict) or not isinstance(item.get("value"), str):
+            raise ValueError(f"Terraform output {name} must contain a string value")
+        outputs[name] = item["value"]
+    return outputs
+
+
+def read_terraform_outputs(terraform_dir: Path) -> dict[str, str]:
+    """Read Terraform outputs from a working directory."""
+    command = ["terraform", f"-chdir={terraform_dir}", "output", "-json"]
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+    except FileNotFoundError as error:
+        raise RuntimeError("terraform executable was not found in PATH") from error
+    except subprocess.CalledProcessError as error:
+        details = error.stderr.strip() or error.stdout.strip()
+        raise RuntimeError(f"Unable to read Terraform outputs: {details}") from error
+    return terraform_outputs(result.stdout)
 
 
 @dataclass
@@ -150,19 +184,35 @@ def delete_plan(plan: CleanupPlan, project: str, region: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project", required=True)
-    parser.add_argument("--region", required=True)
+    parser.add_argument("--project", default=os.getenv("GOOGLE_CLOUD_PROJECT"))
+    parser.add_argument("--region", default=os.getenv("VERTEX_REGION"))
+    parser.add_argument(
+        "--terraform-dir",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "terraform",
+        help="Terraform working directory",
+    )
     parser.add_argument("--execute", action="store_true", help="delete after explicit confirmation")
     args = parser.parse_args()
-    plan = collect_plan(args.project, args.region)
-    print_plan(plan, args.project, args.region)
+    try:
+        outputs = read_terraform_outputs(args.terraform_dir)
+    except (RuntimeError, ValueError) as error:
+        parser.error(str(error))
+
+    project = args.project or outputs.get("project_id")
+    region = args.region or outputs.get("region")
+    if not project or not region:
+        parser.error("Terraform outputs project_id and region are required")
+
+    plan = collect_plan(project, region)
+    print_plan(plan, project, region)
     if not args.execute:
         print("Simulation only. Re-run with --execute to delete after review.")
         return 0
     if input("Type DELETE to confirm: ") != "DELETE":
         print("Cleanup cancelled.")
         return 0
-    delete_plan(plan, args.project, args.region)
+    delete_plan(plan, project, region)
     return 0
 
 

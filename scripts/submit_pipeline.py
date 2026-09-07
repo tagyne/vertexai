@@ -82,22 +82,26 @@ def read_terraform_outputs(terraform_dir: Path) -> dict[str, str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", default=os.getenv("GOOGLE_CLOUD_PROJECT"))
-    parser.add_argument("--region", default=os.getenv("VERTEX_REGION", "europe-west9"))
+    parser.add_argument("--region", default=os.getenv("VERTEX_REGION"))
     parser.add_argument(
         "--terraform-dir",
         type=Path,
         default=Path(__file__).resolve().parents[1] / "terraform",
     )
     args = parser.parse_args(argv)
-    if not args.project:
-        parser.error("--project or GOOGLE_CLOUD_PROJECT is required")
 
-    configuration = pipeline_configuration(read_terraform_outputs(args.terraform_dir))
-    print(f"Submitting pipeline to {args.project}/{args.region}")
+    outputs = read_terraform_outputs(args.terraform_dir)
+    configuration = pipeline_configuration(outputs)
+    project = args.project or outputs.get("project_id")
+    region = args.region or outputs.get("region")
+    if not project or not region:
+        parser.error("Terraform outputs project_id and region are required")
+
+    print(f"Submitting pipeline to {project}/{region}")
     print(f"Pipeline root: {configuration['pipeline_root']}")
     submit(
-        project=args.project,
-        region=args.region,
+        project=project,
+        region=region,
         pipeline_root=configuration["pipeline_root"],
         endpoint_id=configuration["endpoint_id"],
         service_account=configuration["service_account"],

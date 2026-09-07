@@ -21,6 +21,24 @@ resource "google_project_service_identity" "monitoring_notification" {
   depends_on = [google_project_service.required]
 }
 
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+resource "google_bigquery_dataset" "model_monitoring_logs" {
+  dataset_id = "model_monitoring"
+  location   = var.region
+  project    = var.project_id
+  labels     = local.labels
+}
+
+resource "google_bigquery_dataset_iam_member" "vertex_ai_logging" {
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.model_monitoring_logs.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
+}
+
 resource "google_storage_bucket_object" "monitoring_schema" {
   bucket       = google_storage_bucket.ml.name
   name         = "monitoring/schema/analysis-instance.yaml"

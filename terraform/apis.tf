@@ -2,6 +2,7 @@ locals {
   required_apis = toset([
     "aiplatform.googleapis.com",
     "artifactregistry.googleapis.com",
+    "bigquery.googleapis.com",
     "cloudbuild.googleapis.com",
     "cloudfunctions.googleapis.com",
     "eventarc.googleapis.com",

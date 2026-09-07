@@ -1,3 +1,11 @@
+output "project_id" {
+  value = var.project_id
+}
+
+output "region" {
+  value = var.region
+}
+
 output "ml_bucket_uri" {
   value = "gs://${google_storage_bucket.ml.name}"
 }

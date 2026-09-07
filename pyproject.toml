@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Reproducible Vertex AI MLOps MVP for student performance prediction"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-  "google-cloud-aiplatform==1.71.1",
+  "google-cloud-aiplatform==1.153.1",
   "functions-framework==3.8.2",
   "google-cloud-secret-manager==2.22.0",
   "google-cloud-storage==2.18.2",

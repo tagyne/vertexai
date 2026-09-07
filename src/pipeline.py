@@ -112,8 +112,15 @@ def evaluate_model(test_dataset: dsl.Input[dsl.Dataset], model: dsl.Input[dsl.Mo
     metrics.log_metric("rmse", float(mean_squared_error(frame["final_exam_score"], predictions) ** 0.5))
 
 
-@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-aiplatform==1.71.1"])
-def register_model(model: dsl.Input[dsl.Model], project: str, region: str, model_display_name: str, model_resource_name: dsl.OutputPath(str)) -> None:
+@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-aiplatform==1.153.1"])
+def register_model(
+    model: dsl.Input[dsl.Model],
+    project: str,
+    region: str,
+    model_display_name: str,
+    model_resource_name: dsl.OutputPath(str),
+    model_version_id: dsl.OutputPath(str),
+) -> None:
     """Register the trained artifact in Vertex AI Model Registry."""
     from google.cloud import aiplatform
 
@@ -125,9 +132,11 @@ def register_model(model: dsl.Input[dsl.Model], project: str, region: str, model
     )
     with open(model_resource_name, "w", encoding="utf-8") as output:
         output.write(registered.resource_name)
+    with open(model_version_id, "w", encoding="utf-8") as output:
+        output.write(registered.version_id)
 
 
-@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-aiplatform==1.71.1"])
+@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-aiplatform==1.153.1"])
 def deploy_model(model_resource_name: str, project: str, region: str, endpoint_id: str) -> None:
     """Deploy the registered model to the Terraform-owned stable endpoint."""
     from google.cloud import aiplatform
@@ -138,86 +147,86 @@ def deploy_model(model_resource_name: str, project: str, region: str, endpoint_i
     model.deploy(endpoint=endpoint, machine_type="e2-standard-4", min_replica_count=1, max_replica_count=1)
 
 
-@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-aiplatform==1.71.1"])
+@dsl.component(base_image="python:3.11", packages_to_install=["google-cloud-aiplatform==1.153.1"])
 def configure_monitoring(
     model_resource_name: str,
+    model_version_id: str,
     project: str,
     region: str,
     endpoint_id: str,
     baseline_uri: str,
-    schema_uri: str,
     notification_channel: str,
 ) -> None:
-    """Create or update Model Monitoring for the deployed model."""
+    """Create a Model Monitoring v2 monitor and a one-minute schedule."""
     from google.cloud import aiplatform
-    from google.cloud.aiplatform import model_monitoring
+    from vertexai.resources.preview import ml_monitoring
 
-    monitored_features = [
-        "gender", "parental_education", "internet_access",
-        "extracurricular_activities", "part_time_job", "study_time_hours",
-        "attendance_percent", "sleep_hours", "previous_grade",
-    ]
     endpoint_resource = endpoint_id if endpoint_id.startswith("projects/") else (
         f"projects/{project}/locations/{region}/endpoints/{endpoint_id}"
     )
     aiplatform.init(project=project, location=region)
-    endpoint = aiplatform.Endpoint(endpoint_resource)
-    deployed_model_id = next(
-        (model.id for model in endpoint.list_models() if model.model == model_resource_name),
-        None,
+    schema = ml_monitoring.spec.ModelMonitoringSchema(
+        feature_fields=[
+            ml_monitoring.spec.FieldSchema(name="gender", data_type="string"),
+            ml_monitoring.spec.FieldSchema(name="parental_education", data_type="string"),
+            ml_monitoring.spec.FieldSchema(name="internet_access", data_type="string"),
+            ml_monitoring.spec.FieldSchema(name="extracurricular_activities", data_type="string"),
+            ml_monitoring.spec.FieldSchema(name="part_time_job", data_type="string"),
+            ml_monitoring.spec.FieldSchema(name="study_time_hours", data_type="float"),
+            ml_monitoring.spec.FieldSchema(name="attendance_percent", data_type="float"),
+            ml_monitoring.spec.FieldSchema(name="sleep_hours", data_type="float"),
+            ml_monitoring.spec.FieldSchema(name="previous_grade", data_type="float"),
+        ],
+        prediction_fields=[
+            ml_monitoring.spec.FieldSchema(
+                name="predicted_final_exam_score", data_type="float"
+            ),
+        ],
     )
-    if deployed_model_id is None:
-        raise ValueError(f"Model {model_resource_name} is not deployed on the endpoint")
-    objective = model_monitoring.ObjectiveConfig(
-        skew_detection_config=model_monitoring.SkewDetectionConfig(
-            data_source=baseline_uri,
-            data_format="csv",
-            target_field="final_exam_score",
-            skew_thresholds=0.2,
-        ),
-        drift_detection_config=model_monitoring.DriftDetectionConfig(
-            drift_thresholds={feature: 0.2 for feature in monitored_features},
-        ),
+    training_dataset = ml_monitoring.spec.MonitoringInput(
+        gcs_uri=baseline_uri,
+        data_format="csv",
     )
-    # Vertex AI rounds monitoring intervals up to a full hour; one hour is the
-    # minimum supported frequency for ModelDeploymentMonitoringJob.
-    schedule = model_monitoring.ScheduleConfig(monitor_interval=1)
-    sampling = model_monitoring.RandomSampleConfig(sample_rate=0.5)
-    alert = model_monitoring.AlertConfig(
-        enable_logging=True,
+    target_dataset = ml_monitoring.spec.MonitoringInput(
+        endpoints=[endpoint_resource],
+        window="1h",
+    )
+    drift = ml_monitoring.spec.DataDriftSpec(
+        categorical_metric_type="l_infinity",
+        numeric_metric_type="jensen_shannon_divergence",
+        default_categorical_alert_threshold=0.2,
+        default_numeric_alert_threshold=0.2,
+    )
+    objective = ml_monitoring.spec.TabularObjective(
+        feature_drift_spec=drift,
+        prediction_output_drift_spec=drift,
+    )
+    notification = ml_monitoring.spec.NotificationSpec(
         notification_channels=[notification_channel],
+        enable_cloud_logging=True,
     )
-    labels = {
-        "project": "student-performance-mlops",
-        "managed_by": "vertex-pipeline",
-        "environment": "dev",
-    }
-    jobs = aiplatform.ModelDeploymentMonitoringJob.list(
-        filter='display_name="student-performance-monitoring"',
-        project=project,
-        location=region,
+    output_spec = ml_monitoring.spec.OutputSpec(
+        gcs_base_dir=baseline_uri.rsplit("/monitoring/", 1)[0] + "/monitoring/v2-results"
     )
-    if jobs:
-        jobs[0].update(
-            objective_configs=objective,
-            deployed_model_ids=[deployed_model_id],
-            schedule_config=schedule,
-            logging_sampling_strategy=sampling,
-            alert_config=alert,
-            labels=labels,
-        )
-    else:
-        aiplatform.ModelDeploymentMonitoringJob.create(
-            endpoint=endpoint,
-            objective_configs=objective,
-            deployed_model_ids=[deployed_model_id],
-            logging_sampling_strategy=sampling,
-            schedule_config=schedule,
-            display_name="student-performance-monitoring",
-            alert_config=alert,
-            analysis_instance_schema_uri=schema_uri,
-            labels=labels,
-        )
+    monitor = ml_monitoring.ModelMonitor.create(
+        display_name="student-performance-monitor",
+        model_name=model_resource_name,
+        model_version_id=model_version_id,
+        model_monitoring_schema=schema,
+        training_dataset=training_dataset,
+        tabular_objective_spec=objective,
+        output_spec=output_spec,
+        notification_spec=notification,
+    )
+    monitor.create_schedule(
+        cron="* * * * *",
+        target_dataset=target_dataset,
+        display_name="student-performance-monitoring-minute",
+        model_monitoring_job_display_name="student-performance-monitoring-minute",
+        tabular_objective_spec=objective,
+        notification_spec=notification,
+        output_spec=output_spec,
+    )
 
 
 @dsl.pipeline(name="student-performance-pipeline")
@@ -246,11 +255,11 @@ def student_performance_pipeline(
     deploy.after(evaluated)
     monitoring = configure_monitoring(
         model_resource_name=registered.outputs["model_resource_name"],
+        model_version_id=registered.outputs["model_version_id"],
         project=project,
         region=region,
         endpoint_id=endpoint_id,
         baseline_uri=monitoring_baseline_uri,
-        schema_uri=monitoring_schema_uri,
         notification_channel=monitoring_notification_channel,
     )
     monitoring.set_caching_options(False)

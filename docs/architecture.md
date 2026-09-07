@@ -23,10 +23,12 @@ split used as the monitoring baseline is explicitly uploaded to Cloud Storage.
 After preparation, the pipeline publishes the training split to a durable
 monitoring baseline URI. After deployment, it creates or updates one
 `ModelDeploymentMonitoringJob` for the stable endpoint. The job monitors
-training-serving skew and prediction drift every 24 hours, samples 50% of
+training-serving skew and prediction drift every hour, samples 50% of
 prediction logs, and sends anomalies to the Terraform-managed Pub/Sub
-notification channel. The Cloud Function stores a `PENDING_APPROVAL` request
-in GCS; it never launches a retraining pipeline automatically.
+notification channel. Vertex AI rounds this schedule to a full hour, so a
+one-minute interval is not supported by this monitoring job type. The Cloud
+Function stores a `PENDING_APPROVAL` request in GCS; it never launches a
+retraining pipeline automatically.
 
 The downloaded dataset currently contains 102 missing values in the
 `parental_education` categorical feature. The preparation stage maps missing

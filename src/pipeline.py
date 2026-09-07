@@ -179,7 +179,9 @@ def configure_monitoring(
             drift_thresholds={feature: 0.2 for feature in monitored_features},
         ),
     )
-    schedule = model_monitoring.ScheduleConfig(monitor_interval=24)
+    # Vertex AI rounds monitoring intervals up to a full hour; one hour is the
+    # minimum supported frequency for ModelDeploymentMonitoringJob.
+    schedule = model_monitoring.ScheduleConfig(monitor_interval=1)
     sampling = model_monitoring.RandomSampleConfig(sample_rate=0.5)
     alert = model_monitoring.AlertConfig(
         enable_logging=True,
